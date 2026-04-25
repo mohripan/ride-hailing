@@ -1,0 +1,354 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Ride-hailing driver service",
+        "title": "Driver Service API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/drivers": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "drivers"
+                ],
+                "summary": "Register a new driver",
+                "parameters": [
+                    {
+                        "description": "Driver details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.registerDriverRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Driver"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/drivers/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "drivers"
+                ],
+                "summary": "Get a driver by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Driver ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Driver"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/drivers/{id}/location": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "drivers"
+                ],
+                "summary": "Update driver location",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Driver ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "GPS coordinates",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.updateLocationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/drivers/{id}/status": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "drivers"
+                ],
+                "summary": "Change driver status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Driver ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New status",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.changeStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Driver"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "domain.Driver": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "current_location": {
+                    "$ref": "#/definitions/domain.Location"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "rating": {
+                    "type": "number"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.Status"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "vehicle": {
+                    "$ref": "#/definitions/domain.Vehicle"
+                }
+            }
+        },
+        "domain.Location": {
+            "type": "object",
+            "properties": {
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
+                }
+            }
+        },
+        "domain.Status": {
+            "type": "string",
+            "enum": [
+                "offline",
+                "online",
+                "on_trip"
+            ],
+            "x-enum-varnames": [
+                "StatusOffline",
+                "StatusOnline",
+                "StatusOnTrip"
+            ]
+        },
+        "domain.Vehicle": {
+            "type": "object",
+            "properties": {
+                "make": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "plate_number": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/domain.VehicleType"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.VehicleType": {
+            "type": "string",
+            "enum": [
+                "motorcycle",
+                "car",
+                "van"
+            ],
+            "x-enum-varnames": [
+                "VehicleTypeMotorcycle",
+                "VehicleTypeCar",
+                "VehicleTypeVan"
+            ]
+        },
+        "handler.changeStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "online",
+                        "offline",
+                        "on_trip"
+                    ]
+                }
+            }
+        },
+        "handler.registerDriverRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "phone",
+                "plate_number",
+                "user_id",
+                "vehicle_make",
+                "vehicle_model",
+                "vehicle_type",
+                "vehicle_year"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "plate_number": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "vehicle_make": {
+                    "type": "string"
+                },
+                "vehicle_model": {
+                    "type": "string"
+                },
+                "vehicle_type": {
+                    "type": "string",
+                    "enum": [
+                        "motorcycle",
+                        "car",
+                        "van"
+                    ]
+                },
+                "vehicle_year": {
+                    "type": "integer",
+                    "minimum": 1990
+                }
+            }
+        },
+        "handler.updateLocationRequest": {
+            "type": "object",
+            "required": [
+                "latitude",
+                "longitude"
+            ],
+            "properties": {
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
+                }
+            }
+        }
+    }
+}

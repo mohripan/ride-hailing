@@ -1,0 +1,238 @@
+basePath: /api/v1
+definitions:
+  domain.Driver:
+    properties:
+      created_at:
+        type: string
+      current_location:
+        $ref: '#/definitions/domain.Location'
+      id:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      rating:
+        type: number
+      status:
+        $ref: '#/definitions/domain.Status'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+      vehicle:
+        $ref: '#/definitions/domain.Vehicle'
+    type: object
+  domain.Location:
+    properties:
+      latitude:
+        type: number
+      longitude:
+        type: number
+    type: object
+  domain.Status:
+    enum:
+    - offline
+    - online
+    - on_trip
+    type: string
+    x-enum-varnames:
+    - StatusOffline
+    - StatusOnline
+    - StatusOnTrip
+  domain.Vehicle:
+    properties:
+      make:
+        type: string
+      model:
+        type: string
+      plate_number:
+        type: string
+      type:
+        $ref: '#/definitions/domain.VehicleType'
+      year:
+        type: integer
+    type: object
+  domain.VehicleType:
+    enum:
+    - motorcycle
+    - car
+    - van
+    type: string
+    x-enum-varnames:
+    - VehicleTypeMotorcycle
+    - VehicleTypeCar
+    - VehicleTypeVan
+  handler.changeStatusRequest:
+    properties:
+      status:
+        enum:
+        - online
+        - offline
+        - on_trip
+        type: string
+    required:
+    - status
+    type: object
+  handler.registerDriverRequest:
+    properties:
+      name:
+        type: string
+      phone:
+        type: string
+      plate_number:
+        type: string
+      user_id:
+        type: string
+      vehicle_make:
+        type: string
+      vehicle_model:
+        type: string
+      vehicle_type:
+        enum:
+        - motorcycle
+        - car
+        - van
+        type: string
+      vehicle_year:
+        minimum: 1990
+        type: integer
+    required:
+    - name
+    - phone
+    - plate_number
+    - user_id
+    - vehicle_make
+    - vehicle_model
+    - vehicle_type
+    - vehicle_year
+    type: object
+  handler.updateLocationRequest:
+    properties:
+      latitude:
+        type: number
+      longitude:
+        type: number
+    required:
+    - latitude
+    - longitude
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Ride-hailing driver service
+  title: Driver Service API
+  version: "1.0"
+paths:
+  /drivers:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Driver details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.registerDriverRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Driver'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new driver
+      tags:
+      - drivers
+  /drivers/{id}:
+    get:
+      parameters:
+      - description: Driver ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Driver'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a driver by ID
+      tags:
+      - drivers
+  /drivers/{id}/location:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Driver ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: GPS coordinates
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateLocationRequest'
+      responses:
+        "204":
+          description: No Content
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update driver location
+      tags:
+      - drivers
+  /drivers/{id}/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Driver ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.changeStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Driver'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Change driver status
+      tags:
+      - drivers
+swagger: "2.0"
