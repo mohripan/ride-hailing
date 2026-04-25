@@ -1,0 +1,315 @@
+basePath: /api/v1
+definitions:
+  domain.AddressLabel:
+    enum:
+    - home
+    - work
+    - other
+    type: string
+    x-enum-varnames:
+    - AddressLabelHome
+    - AddressLabelWork
+    - AddressLabelOther
+  domain.Rider:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      profile_photo_url:
+        type: string
+      rating:
+        type: number
+      saved_addresses:
+        items:
+          $ref: '#/definitions/domain.SavedAddress'
+        type: array
+      updated_at:
+        type: string
+      user_id:
+        type: string
+      wallet_balance:
+        type: number
+    type: object
+  domain.SavedAddress:
+    properties:
+      address:
+        type: string
+      id:
+        type: string
+      label:
+        $ref: '#/definitions/domain.AddressLabel'
+      latitude:
+        type: number
+      longitude:
+        type: number
+    type: object
+  handler.addAddressRequest:
+    properties:
+      address:
+        type: string
+      label:
+        enum:
+        - home
+        - work
+        - other
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+    required:
+    - address
+    - label
+    - latitude
+    - longitude
+    type: object
+  handler.registerRiderRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      user_id:
+        type: string
+    required:
+    - name
+    - phone
+    - user_id
+    type: object
+  handler.topUpRequest:
+    properties:
+      amount:
+        type: number
+    required:
+    - amount
+    type: object
+  handler.updateProfileRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      profile_photo_url:
+        type: string
+    required:
+    - name
+    - phone
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: Ride-hailing rider service
+  title: Rider Service API
+  version: "1.0"
+paths:
+  /riders:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rider details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.registerRiderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Rider'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new rider
+      tags:
+      - riders
+  /riders/{id}:
+    get:
+      parameters:
+      - description: Rider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Rider'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a rider by ID
+      tags:
+      - riders
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Profile details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.updateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Rider'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update rider profile
+      tags:
+      - riders
+  /riders/{id}/addresses:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Address details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.addAddressRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Rider'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add a saved address
+      tags:
+      - riders
+  /riders/{id}/addresses/{addressId}:
+    delete:
+      parameters:
+      - description: Rider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Address ID
+        in: path
+        name: addressId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Rider'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Remove a saved address
+      tags:
+      - riders
+  /riders/{id}/wallet/topup:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Top up amount
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.topUpRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Rider'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Top up rider wallet
+      tags:
+      - riders
+swagger: "2.0"
