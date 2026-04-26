@@ -27,7 +27,7 @@ func Load() *Config {
 		Env:      getEnv("ENV", "development"),
 		HTTPPort: getEnv("HTTP_PORT", "8080"),
 		Postgres: PostgresConfig{
-			DSN: getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/ride_hailing?sslmode=disable"),
+			DSN: getEnv("DRIVER_POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/ride_hailing_driver?sslmode=disable"),
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),

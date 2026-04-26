@@ -1,4 +1,4 @@
-.PHONY: up down logs driver-run driver-build driver-test migrate-up tidy
+.PHONY: up down nuke logs driver-run driver-build driver-test migrate-driver-up rider-run rider-build rider-test migrate-rider-up tidy
 
 # ── Infrastructure ────────────────────────────────────────────────────────────
 up:
@@ -25,7 +25,7 @@ driver-test:
 
 migrate-driver-up:
 	docker compose cp services/driver/internal/infrastructure/postgres/migrations/001_create_drivers.sql postgres:/tmp/001.sql
-	docker compose exec postgres psql -U postgres -d ride_hailing -f /tmp/001.sql
+	docker compose exec postgres psql -U postgres -d ride_hailing_driver -f /tmp/001.sql
 
 # ── Rider Service ────────────────────────────────────────────────────────────
 rider-run:
@@ -39,7 +39,7 @@ rider-test:
 
 migrate-rider-up:
 	docker compose cp services/rider/internal/infrastructure/postgres/migrations/001_create_riders.sql postgres:/tmp/rider_001.sql
-	docker compose exec postgres psql -U postgres -d ride_hailing -f /tmp/rider_001.sql
+	docker compose exec postgres psql -U postgres -d ride_hailing_rider -f /tmp/rider_001.sql
 
 # ── Go Workspace ──────────────────────────────────────────────────────────────
 tidy:
