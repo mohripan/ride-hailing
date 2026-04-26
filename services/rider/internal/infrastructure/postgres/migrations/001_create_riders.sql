@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS riders (
-                                      id                VARCHAR(36)     PRIMARY KEY,
+                                       id                VARCHAR(36)     PRIMARY KEY,
     user_id           VARCHAR(36)     NOT NULL UNIQUE,
     name              VARCHAR(255)    NOT NULL,
     phone             VARCHAR(50)     NOT NULL UNIQUE,
@@ -24,3 +24,21 @@ CREATE TABLE IF NOT EXISTS saved_addresses (
 
 CREATE INDEX IF NOT EXISTS idx_riders_user_id         ON riders(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_addresses_rider  ON saved_addresses(rider_id);
+
+CREATE TABLE IF NOT EXISTS outbox_messages (
+                                               id                    VARCHAR(36)   PRIMARY KEY,
+    topic                 VARCHAR(255)  NOT NULL,
+    message_key           VARCHAR(255)  NOT NULL,
+    event_type            VARCHAR(255)  NOT NULL,
+    payload               JSONB         NOT NULL,
+    attempts              INTEGER       NOT NULL DEFAULT 0,
+    next_attempt_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    processing_started_at TIMESTAMPTZ,
+    published_at          TIMESTAMPTZ,
+    last_error            TEXT,
+    created_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    );
+
+CREATE INDEX IF NOT EXISTS idx_rider_outbox_pending
+    ON outbox_messages (next_attempt_at, created_at)
+    WHERE published_at IS NULL;

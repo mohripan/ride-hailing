@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"ride-hailing/services/rider/internal/domain"
+	"ride-hailing/shared/pkg/messaging"
+	"ride-hailing/shared/pkg/outbox"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -42,15 +44,33 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) Save(ctx context.Context, rider *domain.Rider) error {
+func (r *Repository) Save(ctx context.Context, rider *domain.Rider, messages []messaging.OutboxMessage) error {
 	const q = `
         INSERT INTO riders (id, user_id, name, phone, email, profile_photo_url, rating, wallet_balance, created_at, updated_at)
         VALUES (:id, :user_id, :name, :phone, :email, :profile_photo_url, :rating, :wallet_balance, :created_at, :updated_at)`
-	_, err := r.db.NamedExecContext(ctx, q, toRow(rider))
-	return err
+
+	if len(messages) == 0 {
+		_, err := r.db.NamedExecContext(ctx, q, toRow(rider))
+		return err
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.NamedExecContext(ctx, q, toRow(rider)); err != nil {
+		return err
+	}
+	if err := outbox.InsertTx(ctx, tx, messages); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
-func (r *Repository) Update(ctx context.Context, rider *domain.Rider) error {
+func (r *Repository) Update(ctx context.Context, rider *domain.Rider, messages []messaging.OutboxMessage) error {
 	// Update rider in a transaction so addresses stay in sync
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -84,6 +104,28 @@ func (r *Repository) Update(ctx context.Context, rider *domain.Rider) error {
 		if _, err := tx.ExecContext(ctx, insertAddr, addr.ID, rider.ID, string(addr.Label), addr.Address, addr.Latitude, addr.Longitude); err != nil {
 			return err
 		}
+	}
+
+	if err := outbox.InsertTx(ctx, tx, messages); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *Repository) AppendOutbox(ctx context.Context, messages []messaging.OutboxMessage) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := outbox.InsertTx(ctx, tx, messages); err != nil {
+		return err
 	}
 
 	return tx.Commit()

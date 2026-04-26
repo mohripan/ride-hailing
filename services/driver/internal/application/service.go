@@ -6,27 +6,27 @@ import (
 	"ride-hailing/services/driver/internal/application/commands"
 	"ride-hailing/services/driver/internal/application/queries"
 	"ride-hailing/services/driver/internal/domain"
+	"ride-hailing/shared/events"
+	"ride-hailing/shared/pkg/messaging"
 
 	"go.uber.org/zap"
 )
 
 // DriverService is the application layer — it orchestrates domain objects
-// and calls ports (repository, cache, publisher). It has NO business logic;
+// and calls ports (repository, cache). It has NO business logic;
 // business logic lives in the domain.
 type DriverService struct {
-	repo      domain.Repository
-	cache     domain.Cache
-	publisher domain.EventPublisher
-	logger    *zap.Logger
+	repo   domain.Repository
+	cache  domain.Cache
+	logger *zap.Logger
 }
 
 func NewDriverService(
 	repo domain.Repository,
 	cache domain.Cache,
-	publisher domain.EventPublisher,
 	logger *zap.Logger,
 ) *DriverService {
-	return &DriverService{repo: repo, cache: cache, publisher: publisher, logger: logger}
+	return &DriverService{repo: repo, cache: cache, logger: logger}
 }
 
 func (s *DriverService) RegisterDriver(ctx context.Context, cmd commands.RegisterDriverCommand) (*domain.Driver, error) {
@@ -43,7 +43,7 @@ func (s *DriverService) RegisterDriver(ctx context.Context, cmd commands.Registe
 		return nil, err
 	}
 
-	if err := s.repo.Save(ctx, driver); err != nil {
+	if err := s.repo.Save(ctx, driver, nil); err != nil {
 		return nil, err
 	}
 
@@ -67,18 +67,28 @@ func (s *DriverService) ChangeStatus(ctx context.Context, cmd commands.ChangeSta
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, driver); err != nil {
+	message, err := messaging.NewOutboxMessage(
+		events.TopicDriverStatusChanged,
+		driver.ID,
+		events.TopicDriverStatusChanged,
+		"driver-service",
+		events.DriverStatusChanged{
+			DriverID:  driver.ID,
+			OldStatus: oldStatus,
+			NewStatus: string(driver.Status),
+			Timestamp: driver.UpdatedAt,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Update(ctx, driver, []messaging.OutboxMessage{message}); err != nil {
 		return nil, err
 	}
 
 	if err := s.cache.Set(ctx, driver); err != nil {
 		s.logger.Warn("cache update failed after status change", zap.String("driver_id", driver.ID), zap.Error(err))
-	}
-
-	// Fire-and-forget to Kafka; matching-service and others will react
-	if err := s.publisher.PublishStatusChanged(ctx, driver.ID, oldStatus, string(driver.Status)); err != nil {
-		// Non-fatal: log but don't fail the request. The DB write succeeded.
-		s.logger.Error("failed to publish status_changed event", zap.String("driver_id", driver.ID), zap.Error(err))
 	}
 
 	return driver, nil
@@ -94,16 +104,30 @@ func (s *DriverService) UpdateLocation(ctx context.Context, cmd commands.UpdateL
 		return err
 	}
 
-	// Location is high-frequency (every few seconds per driver).
-	// We write to Redis only — fast, cheap, and the location-service
-	// consumes the Kafka event to maintain the GEO index for matching.
-	// Postgres is updated only on status changes, not every GPS ping.
-	if err := s.cache.Set(ctx, driver); err != nil {
-		s.logger.Warn("cache update failed after location update", zap.String("driver_id", driver.ID), zap.Error(err))
+	message, err := messaging.NewOutboxMessage(
+		events.TopicDriverLocationUpdated,
+		driver.ID,
+		events.TopicDriverLocationUpdated,
+		"driver-service",
+		events.DriverLocationUpdated{
+			DriverID:  driver.ID,
+			Latitude:  cmd.Latitude,
+			Longitude: cmd.Longitude,
+			Timestamp: driver.UpdatedAt,
+		},
+	)
+	if err != nil {
+		return err
 	}
 
-	if err := s.publisher.PublishLocationUpdated(ctx, driver.ID, cmd.Latitude, cmd.Longitude); err != nil {
-		s.logger.Error("failed to publish location_updated event", zap.String("driver_id", driver.ID), zap.Error(err))
+	// Location is high-frequency (every few seconds per driver), so the durable
+	// write goes to the outbox instead of updating the driver table on every ping.
+	if err := s.repo.AppendOutbox(ctx, []messaging.OutboxMessage{message}); err != nil {
+		return err
+	}
+
+	if err := s.cache.Set(ctx, driver); err != nil {
+		s.logger.Warn("cache update failed after location update", zap.String("driver_id", driver.ID), zap.Error(err))
 	}
 
 	return nil

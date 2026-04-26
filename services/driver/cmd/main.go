@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -11,11 +12,12 @@ import (
 
 	"ride-hailing/services/driver/config"
 	"ride-hailing/services/driver/internal/application"
-	"ride-hailing/services/driver/internal/infrastructure/kafka"
 	"ride-hailing/services/driver/internal/infrastructure/postgres"
 	infraredis "ride-hailing/services/driver/internal/infrastructure/redis"
 	handler "ride-hailing/services/driver/internal/interfaces/http"
+	"ride-hailing/shared/pkg/daprpubsub"
 	sharedlogger "ride-hailing/shared/pkg/logger"
+	"ride-hailing/shared/pkg/outbox"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -59,10 +61,16 @@ func main() {
 	// ── Wire up infrastructure → application → HTTP ───────────────────────────
 	driverRepo := postgres.NewRepository(db)
 	driverCache := infraredis.NewCache(rdb)
-	producer := kafka.NewProducer(cfg.Kafka.Brokers, logger)
-	defer producer.Close()
+	outboxStore := outbox.NewStore(db)
+	publisher := daprpubsub.NewPublisher(cfg.Dapr.HTTPPort, cfg.Dapr.PubSubName)
+	relay := outbox.NewRelay("driver-service", outboxStore, publisher, logger, outbox.RelayConfig{
+		BatchSize:      cfg.Dapr.OutboxBatchSize,
+		PollInterval:   cfg.Dapr.PollInterval,
+		BaseRetryDelay: cfg.Dapr.RetryDelay,
+		ClaimTimeout:   cfg.Dapr.ClaimTimeout,
+	})
 
-	driverSvc := application.NewDriverService(driverRepo, driverCache, producer, logger)
+	driverSvc := application.NewDriverService(driverRepo, driverCache, logger)
 
 	h := handler.NewHandler(driverSvc, logger)
 	r := handler.NewRouter(h, logger)
@@ -77,6 +85,12 @@ func main() {
 	// ── Graceful shutdown ─────────────────────────────────────────────────────
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	go func() {
+		if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("outbox relay stopped", zap.Error(err))
+		}
+	}()
 
 	go func() {
 		logger.Info("driver-service started", zap.String("port", cfg.HTTPPort))
