@@ -1,8 +1,13 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
+
+	"ride-hailing/shared/pkg/messaging"
 )
 
 type Config struct {
@@ -11,6 +16,7 @@ type Config struct {
 	Postgres PostgresConfig
 	Redis    RedisConfig
 	Kafka    KafkaConfig
+	Dapr     DaprConfig
 }
 
 type PostgresConfig struct{ DSN string }
@@ -19,6 +25,14 @@ type RedisConfig struct {
 	Password string
 }
 type KafkaConfig struct{ Brokers []string }
+type DaprConfig struct {
+	HTTPPort        string
+	PubSubName      string
+	OutboxBatchSize int
+	PollInterval    time.Duration
+	RetryDelay      time.Duration
+	ClaimTimeout    time.Duration
+}
 
 func Load() *Config {
 	return &Config{
@@ -34,6 +48,14 @@ func Load() *Config {
 		Kafka: KafkaConfig{
 			Brokers: strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ","),
 		},
+		Dapr: DaprConfig{
+			HTTPPort:        getEnv("RIDER_DAPR_HTTP_PORT", "3501"),
+			PubSubName:      getEnv("DAPR_PUBSUB_NAME", messaging.DefaultPubSubName),
+			OutboxBatchSize: mustGetEnvInt("OUTBOX_BATCH_SIZE", 25),
+			PollInterval:    mustGetEnvDuration("OUTBOX_POLL_INTERVAL", 2*time.Second),
+			RetryDelay:      mustGetEnvDuration("OUTBOX_BASE_RETRY_DELAY", 5*time.Second),
+			ClaimTimeout:    mustGetEnvDuration("OUTBOX_CLAIM_TIMEOUT", 30*time.Second),
+		},
 	}
 }
 
@@ -42,4 +64,30 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func mustGetEnvInt(key string, fallback int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		panic(fmt.Sprintf("invalid %s value %q: %v", key, raw, err))
+	}
+	return value
+}
+
+func mustGetEnvDuration(key string, fallback time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		panic(fmt.Sprintf("invalid %s value %q: %v", key, raw, err))
+	}
+	return value
 }

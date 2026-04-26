@@ -1,4 +1,4 @@
-.PHONY: up down nuke logs driver-run driver-build driver-test migrate-driver-up rider-run rider-build rider-test migrate-rider-up tidy
+.PHONY: up down nuke logs driver-run driver-run-dapr driver-build driver-test migrate-driver-up rider-run rider-run-dapr rider-build rider-test migrate-rider-up tidy
 
 # ── Infrastructure ────────────────────────────────────────────────────────────
 up:
@@ -17,6 +17,9 @@ logs:
 driver-run:
 	cd services/driver && go run ./cmd/main.go
 
+driver-run-dapr:
+	cd services/driver && dapr run --app-id driver-service --app-port 8080 --dapr-http-port 3500 --resources-path ../../dapr/components -- go run ./cmd/main.go
+
 driver-build:
 	cd services/driver && go build -o bin/driver ./cmd/main.go
 
@@ -30,6 +33,9 @@ migrate-driver-up:
 # ── Rider Service ────────────────────────────────────────────────────────────
 rider-run:
 	cd services/rider && go run ./cmd/main.go
+
+rider-run-dapr:
+	cd services/rider && dapr run --app-id rider-service --app-port 8081 --dapr-http-port 3501 --resources-path ../../dapr/components -- go run ./cmd/main.go
 
 rider-build:
 	cd services/rider && go build -o bin/rider ./cmd/main.go

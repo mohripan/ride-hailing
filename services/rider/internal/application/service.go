@@ -6,24 +6,24 @@ import (
 	"ride-hailing/services/rider/internal/application/commands"
 	"ride-hailing/services/rider/internal/application/queries"
 	"ride-hailing/services/rider/internal/domain"
+	"ride-hailing/shared/events"
+	"ride-hailing/shared/pkg/messaging"
 
 	"go.uber.org/zap"
 )
 
 type RiderService struct {
-	repo      domain.Repository
-	cache     domain.Cache
-	publisher domain.EventPublisher
-	logger    *zap.Logger
+	repo   domain.Repository
+	cache  domain.Cache
+	logger *zap.Logger
 }
 
 func NewRiderService(
 	repo domain.Repository,
 	cache domain.Cache,
-	publisher domain.EventPublisher,
 	logger *zap.Logger,
 ) *RiderService {
-	return &RiderService{repo: repo, cache: cache, publisher: publisher, logger: logger}
+	return &RiderService{repo: repo, cache: cache, logger: logger}
 }
 
 func (s *RiderService) RegisterRider(ctx context.Context, cmd commands.RegisterRiderCommand) (*domain.Rider, error) {
@@ -32,16 +32,28 @@ func (s *RiderService) RegisterRider(ctx context.Context, cmd commands.RegisterR
 		return nil, err
 	}
 
-	if err := s.repo.Save(ctx, rider); err != nil {
+	message, err := messaging.NewOutboxMessage(
+		events.TopicRiderRegistered,
+		rider.ID,
+		events.TopicRiderRegistered,
+		"rider-service",
+		events.RiderRegistered{
+			RiderID:   rider.ID,
+			UserID:    rider.UserID,
+			Name:      rider.Name,
+			Timestamp: rider.CreatedAt,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Save(ctx, rider, []messaging.OutboxMessage{message}); err != nil {
 		return nil, err
 	}
 
 	if err := s.cache.Set(ctx, rider); err != nil {
 		s.logger.Warn("cache warm-up failed after register", zap.String("rider_id", rider.ID), zap.Error(err))
-	}
-
-	if err := s.publisher.PublishRiderRegistered(ctx, rider.ID, rider.UserID, rider.Name); err != nil {
-		s.logger.Error("failed to publish rider_registered event", zap.String("rider_id", rider.ID), zap.Error(err))
 	}
 
 	return rider, nil
@@ -57,7 +69,7 @@ func (s *RiderService) UpdateProfile(ctx context.Context, cmd commands.UpdatePro
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, rider); err != nil {
+	if err := s.repo.Update(ctx, rider, nil); err != nil {
 		return nil, err
 	}
 
@@ -78,16 +90,28 @@ func (s *RiderService) TopUpWallet(ctx context.Context, cmd commands.TopUpWallet
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, rider); err != nil {
+	message, err := messaging.NewOutboxMessage(
+		events.TopicWalletToppedUp,
+		rider.ID,
+		events.TopicWalletToppedUp,
+		"rider-service",
+		events.WalletToppedUp{
+			RiderID:   rider.ID,
+			Amount:    cmd.Amount,
+			Balance:   rider.WalletBalance,
+			Timestamp: rider.UpdatedAt,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Update(ctx, rider, []messaging.OutboxMessage{message}); err != nil {
 		return nil, err
 	}
 
 	if err := s.cache.Set(ctx, rider); err != nil {
 		s.logger.Warn("cache update failed after top up", zap.String("rider_id", rider.ID), zap.Error(err))
-	}
-
-	if err := s.publisher.PublishWalletToppedUp(ctx, rider.ID, cmd.Amount, rider.WalletBalance); err != nil {
-		s.logger.Error("failed to publish wallet_topped_up event", zap.String("rider_id", rider.ID), zap.Error(err))
 	}
 
 	return rider, nil
@@ -107,7 +131,7 @@ func (s *RiderService) AddSavedAddress(ctx context.Context, cmd commands.AddSave
 		Longitude: cmd.Longitude,
 	})
 
-	if err := s.repo.Update(ctx, rider); err != nil {
+	if err := s.repo.Update(ctx, rider, nil); err != nil {
 		return nil, err
 	}
 
@@ -128,7 +152,7 @@ func (s *RiderService) RemoveSavedAddress(ctx context.Context, cmd commands.Remo
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, rider); err != nil {
+	if err := s.repo.Update(ctx, rider, nil); err != nil {
 		return nil, err
 	}
 

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"ride-hailing/services/driver/internal/domain"
+	"ride-hailing/shared/pkg/messaging"
+	"ride-hailing/shared/pkg/outbox"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // registers the postgres driver
@@ -41,7 +43,7 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) Save(ctx context.Context, d *domain.Driver) error {
+func (r *Repository) Save(ctx context.Context, d *domain.Driver, messages []messaging.OutboxMessage) error {
 	const q = `
 		INSERT INTO drivers (
 			id, user_id, name, phone, status,
@@ -52,11 +54,28 @@ func (r *Repository) Save(ctx context.Context, d *domain.Driver) error {
 			:vehicle_make, :vehicle_model, :vehicle_year, :plate_number, :vehicle_type,
 			:location_lat, :location_lng, :rating, :created_at, :updated_at
 		)`
-	_, err := r.db.NamedExecContext(ctx, q, toRow(d))
-	return err
+	if len(messages) == 0 {
+		_, err := r.db.NamedExecContext(ctx, q, toRow(d))
+		return err
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.NamedExecContext(ctx, q, toRow(d)); err != nil {
+		return err
+	}
+	if err := outbox.InsertTx(ctx, tx, messages); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
-func (r *Repository) Update(ctx context.Context, d *domain.Driver) error {
+func (r *Repository) Update(ctx context.Context, d *domain.Driver, messages []messaging.OutboxMessage) error {
 	const q = `
 		UPDATE drivers SET
 			name          = :name,
@@ -72,8 +91,43 @@ func (r *Repository) Update(ctx context.Context, d *domain.Driver) error {
 			rating        = :rating,
 			updated_at    = :updated_at
 		WHERE id = :id`
-	_, err := r.db.NamedExecContext(ctx, q, toRow(d))
-	return err
+	if len(messages) == 0 {
+		_, err := r.db.NamedExecContext(ctx, q, toRow(d))
+		return err
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.NamedExecContext(ctx, q, toRow(d)); err != nil {
+		return err
+	}
+	if err := outbox.InsertTx(ctx, tx, messages); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *Repository) AppendOutbox(ctx context.Context, messages []messaging.OutboxMessage) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := outbox.InsertTx(ctx, tx, messages); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (r *Repository) FindByID(ctx context.Context, id string) (*domain.Driver, error) {

@@ -7,13 +7,14 @@ Build this into a Kafka-native, real-time delivery matching platform: rider dema
 ## Current baseline
 
 - `services/driver` and `services/rider` are the only implemented services today.
-- Redis is already positioned as a fast read/cache layer and Kafka is already used for domain events.
+- Redis is already positioned as a fast read/cache layer.
+- Outbound events now use service-local outbox tables and Dapr pub/sub sidecars in front of Kafka.
 - `services/location`, `services/matching`, `services/pricing`, `services/trip`, and `services/notification` are present as placeholders.
-- Driver and rider still share the same Postgres database, which should be treated as the first architectural gap to close.
+- Driver and rider now use separate Postgres databases in the same local Postgres container.
 
 ## Recommended sequence
 
-### 1. Split data ownership by service
+### 1. Split data ownership by service - Done
 
 **Goal:** move from a shared database to service-owned persistence.
 
@@ -30,7 +31,7 @@ Build this into a Kafka-native, real-time delivery matching platform: rider dema
 - It aligns the codebase with the service boundaries that already exist in the domain/application/infrastructure layers.
 - It prevents future location, matching, trip, and pricing services from coupling themselves to one shared schema.
 
-### 2. Harden Kafka as the integration backbone
+### 2. Harden Kafka as the integration backbone - Done
 
 **Goal:** make events reliable enough to support matching and trip orchestration.
 
@@ -134,8 +135,8 @@ Build this into a Kafka-native, real-time delivery matching platform: rider dema
 
 If the goal is to make the next iteration meaningful, do these first:
 
-1. Separate the driver and rider databases.
-2. Add outbox-based event publishing so writes and Kafka stay consistent.
+1. Done - Separate the driver and rider databases.
+2. Done - Add outbox-based event publishing so writes and Kafka stay consistent.
 3. Implement the location service as the first real event-driven downstream service.
 4. Implement the matching service on top of location projections.
 

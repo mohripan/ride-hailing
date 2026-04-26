@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v2alpha1
+kind: Subscription
+metadata:
+  name: notification-wallet-topped-up
+spec:
+  pubsubname: kafka-pubsub
+  topic: rider.wallet.topped_up
+  routes:
+    default: /events/rider-wallet-topped-up
+  deadLetterTopic: dlq.rider.wallet.topped_up
+  metadata:
+    rawPayload: "true"
+scopes:
+  - notification-service

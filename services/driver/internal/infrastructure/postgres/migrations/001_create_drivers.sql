@@ -25,3 +25,21 @@ CREATE TABLE IF NOT EXISTS drivers (
 
 CREATE INDEX IF NOT EXISTS idx_drivers_user_id ON drivers(user_id);
 CREATE INDEX IF NOT EXISTS idx_drivers_status  ON drivers(status);
+
+CREATE TABLE IF NOT EXISTS outbox_messages (
+    id                    VARCHAR(36)   PRIMARY KEY,
+    topic                 VARCHAR(255)  NOT NULL,
+    message_key           VARCHAR(255)  NOT NULL,
+    event_type            VARCHAR(255)  NOT NULL,
+    payload               JSONB         NOT NULL,
+    attempts              INTEGER       NOT NULL DEFAULT 0,
+    next_attempt_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    processing_started_at TIMESTAMPTZ,
+    published_at          TIMESTAMPTZ,
+    last_error            TEXT,
+    created_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_outbox_pending
+    ON outbox_messages (next_attempt_at, created_at)
+    WHERE published_at IS NULL;
